@@ -189,7 +189,8 @@ public class Mysql2EntityGenerator {
         StringBuilder classStr = new StringBuilder();
         classStr.append(String.format("/**\n * %s %s\n * @author %s  %s\n*/\n", tableInfo.getName(), tableInfo.getComment(),author,new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())));
         classStr.append(String.format("@Entity\n@Table(name = \"%s\")\n", tableInfo.getName()));
-        classStr.append("public class ").append(parseStr(tableInfo.getName(), true)).append(" implements Serializable {\n\t");
+        String className = parseStr(tableInfo.getName(), true);
+        classStr.append("public class ").append(className).append(" implements Serializable {\n\t");
 
         StringBuilder importStr = new StringBuilder();
         importStr.append("import java.io.Serializable;\n");
@@ -201,6 +202,10 @@ public class Mysql2EntityGenerator {
         importStr.append("import javax.persistence.GenerationType;\n");
 
         StringBuilder methodStr = new StringBuilder();
+
+        StringBuilder toStringStr = new StringBuilder();
+        StringBuilder toStringStrTemp = new StringBuilder();// deptNo='"+deptNo+"',
+
 
         StringBuilder attrStr = new StringBuilder();
         attrStr.append("\tprivate static final long serialVersionUID = 1L;\n\n");
@@ -233,13 +238,17 @@ public class Mysql2EntityGenerator {
                 attrStr.append("\t@Temporal(value = TemporalType.TIMESTAMP)\n");
             }
             attrStr.append(String.format("\t@Column(name = \"%s\")\n",fieldInfo.getField()));
-            attrStr.append(String.format("\tprivate %s %s;\n\n", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false)));
+            String fieldName = parseStr(fieldInfo.getField(), false);
+            attrStr.append(String.format("\tprivate %s %s;\n\n", parseType(fieldInfo.getType()), fieldName));
 
-            String getter = String.format("\tpublic %s get%s() {\n\t\treturn %s;\n\t}\n\n ", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), true), parseStr(fieldInfo.getField(), false));
-            String setter = String.format("\tpublic void set%s(%s %s) {\n\t\tthis.%s = %s;\n\t}\n\n", parseStr(fieldInfo.getField(), true), parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false));
+            String getter = String.format("\tpublic %s get%s() {\n\t\treturn %s;\n\t}\n\n ", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), true), fieldName);
+            String setter = String.format("\tpublic void set%s(%s %s) {\n\t\tthis.%s = %s;\n\t}\n\n", parseStr(fieldInfo.getField(), true), parseType(fieldInfo.getType()), fieldName, fieldName, fieldName);
             methodStr.append(getter).append(setter);
+
+            toStringStrTemp.append(","+ fieldName +"='+\" + "+ fieldName +" + \"'");
         }
-        return new StringBuilder("package ").append(packageStr).append(";\n\n").append(importStr).append("\n").append(classStr).append("\n").append(attrStr).append(methodStr).append("\n}").toString();
+        toStringStr.append("\t@Override\n\tpublic String toString() {\n\t\treturn \""+className+"{"+toStringStrTemp.substring(1)+"}\";\n\t}\n");
+        return new StringBuilder("package ").append(packageStr).append(";\n\n").append(importStr).append("\n").append(classStr).append("\n").append(attrStr).append(methodStr).append(toStringStr).append("\n}").toString();
     }
 
 
