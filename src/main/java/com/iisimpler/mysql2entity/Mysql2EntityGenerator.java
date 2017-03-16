@@ -144,6 +144,9 @@ public class Mysql2EntityGenerator {
      * @return Java类型
      */
     private String parseType(String sqlType) {
+        if (sqlType.contains("bigint")) {
+            return "Long";
+        }
         if (sqlType.contains("int")) {
             return "Integer";
         }
@@ -152,6 +155,24 @@ public class Mysql2EntityGenerator {
         }
         if (sqlType.contains("date")||sqlType.contains("time")) {
             return "Date";
+        }
+        if (sqlType.contains("decimal")||sqlType.contains("numeric")) {
+            return "BigDecimal";
+        }
+        if (sqlType.contains("float")) {
+            return "Float";
+        }
+        if (sqlType.contains("double")) {
+            return "Double";
+        }
+        if (sqlType.contains("bit")) {
+            return "Boolean";
+        }
+        if (sqlType.contains("image")) {
+            return "Blob";
+        }
+        if (sqlType.contains("text")) {
+            return "Clob";
         }
 
         return null;
@@ -165,27 +186,60 @@ public class Mysql2EntityGenerator {
      */
     private String processDomainStr(TableInfo tableInfo) {
 
+        StringBuilder classStr = new StringBuilder();
+        classStr.append(String.format("/**\n * %s %s\n * @author %s  %s\n*/\n", tableInfo.getName(), tableInfo.getComment(),author,new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())));
+        classStr.append(String.format("@Entity\n@Table(name = \"%s\")\n", tableInfo.getName()));
+        classStr.append("public class ").append(parseStr(tableInfo.getName(), true)).append(" implements Serializable {\n\t");
+
         StringBuilder importStr = new StringBuilder();
-        String classStr = String.format("/**\r\n * %s %s\r\n * @author %s  %s\r\n*/\r\npublic class %s", tableInfo.getName(), tableInfo.getComment(),author,new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()), parseStr(tableInfo.getName(), true));
-        StringBuilder attrStr = new StringBuilder();
+        importStr.append("import java.io.Serializable;\n");
+        importStr.append("import javax.persistence.Entity;\n");
+        importStr.append("import javax.persistence.Table;\n");
+        importStr.append("import javax.persistence.Id;\n");
+        importStr.append("import javax.persistence.Column;\n");
+        importStr.append("import javax.persistence.GeneratedValue;\n");
+        importStr.append("import javax.persistence.GenerationType;\n");
+
         StringBuilder methodStr = new StringBuilder();
 
+        StringBuilder attrStr = new StringBuilder();
+        attrStr.append("\tprivate static final long serialVersionUID = 1L;\n\n");
+
         List<FieldInfo> fieldInfoList = tableInfo.getFieldInfoList();
+        boolean isFirst= true;
         for (FieldInfo fieldInfo : fieldInfoList) {
-
-            if (fieldInfo.getType().contains("date")||fieldInfo.getType().contains("time") && !importStr.toString().contains("java.util.Date")) {
-                importStr.append("import java.util.Date;");
+            if (fieldInfo.getType().contains("date")||fieldInfo.getType().contains("time") && !importStr.toString().contains("java.util.Date") && !importStr.toString().contains("Temporal")) {
+                importStr.append("import java.util.Date;\n");
+                importStr.append("import javax.persistence.Temporal;\n");
+                importStr.append("import javax.persistence.TemporalType;\n");
+                importStr.append("import org.springframework.format.annotation.DateTimeFormat;\n");
             }
+            if (fieldInfo.getType().contains("text")) {
+                importStr.append("import java.sql.Clob;\n");
+            }
+            if (fieldInfo.getType().contains("image")) {
+                importStr.append("import java.sql.Blob;\n");
+            }
+
             if (!fieldInfo.getComment().isEmpty()) {
-                attrStr.append(String.format("\t/** %s */\r\n", fieldInfo.getComment()));
+                attrStr.append(String.format("\t/** %s */\n", fieldInfo.getComment()));
             }
-            attrStr.append(String.format("\tprivate %s %s;\r\n\r\n", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false)));
+            if (fieldInfo.getPrimaryKey()&&isFirst) {
+                attrStr.append("\t@Id\n\t@GeneratedValue(strategy = GenerationType.AUTO)\n");
+                isFirst = false;
+            }
+            if (fieldInfo.getType().contains("date")||fieldInfo.getType().contains("time")) {
+                attrStr.append("\t@DateTimeFormat(pattern = \"yyyy-MM-dd HH:mm:ss\")\n");
+                attrStr.append("\t@Temporal(value = TemporalType.TIMESTAMP)\n");
+            }
+            attrStr.append(String.format("\t@Column(name = \"%s\")\n",fieldInfo.getField()));
+            attrStr.append(String.format("\tprivate %s %s;\n\n", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false)));
 
-            String getter = String.format("\tpublic %s get%s() {\r\n\t\treturn %s;\r\n\t}\r\n\r\n ", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), true), parseStr(fieldInfo.getField(), false));
-            String setter = String.format("\tpublic void set%s(%s %s) {\r\n\t\tthis.%s = %s;\r\n\t}\r\n\r\n", parseStr(fieldInfo.getField(), true), parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false));
+            String getter = String.format("\tpublic %s get%s() {\n\t\treturn %s;\n\t}\n\n ", parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), true), parseStr(fieldInfo.getField(), false));
+            String setter = String.format("\tpublic void set%s(%s %s) {\n\t\tthis.%s = %s;\n\t}\n\n", parseStr(fieldInfo.getField(), true), parseType(fieldInfo.getType()), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false), parseStr(fieldInfo.getField(), false));
             methodStr.append(getter).append(setter);
         }
-        return "package " + packageStr + ";\r\n\r\n" + importStr + "\r\n\r\n" + classStr + " {\r\n\r\n" + attrStr + methodStr + "}";
+        return new StringBuilder("package ").append(packageStr).append(";\n\n").append(importStr).append("\n").append(classStr).append("\n").append(attrStr).append(methodStr).append("\n}").toString();
     }
 
 
